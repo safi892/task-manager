@@ -28,7 +28,7 @@ class TaskDetails extends StatelessWidget {
         centerTitle: true,
         title: const Text('Task Details'),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,7 +117,6 @@ class TaskDetails extends StatelessWidget {
             ),
 
             const SizedBox(height: 24.0),
-            const Spacer(),
 
             FilledButton.icon(
               onPressed: () {
@@ -154,6 +153,7 @@ class TaskDetails extends StatelessWidget {
               icon: const Icon(Icons.edit),
               label: const Text('Edit Task'),
             ),
+            const SizedBox(height: 24.0),
           ],
         ),
       ),

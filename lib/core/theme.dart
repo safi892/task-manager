@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_theme.dart';
 
 class AppTheme {
   AppTheme._();
@@ -8,7 +9,7 @@ class AppTheme {
           seedColor: const Color(0xFF6C63FF),
           brightness: Brightness.light,
         ),
-        Brightness.light,
+        AppCustomColors.light,
       );
 
   static ThemeData get dark => _build(
@@ -16,11 +17,12 @@ class AppTheme {
           seedColor: const Color(0xFF8B83FF),
           brightness: Brightness.dark,
         ),
-        Brightness.dark,
+        AppCustomColors.dark,
       );
 
-  static ThemeData _build(ColorScheme colorScheme, Brightness brightness) {
+  static ThemeData _build(ColorScheme colorScheme, AppCustomColors customColors) {
     return ThemeData(
+      extensions: [customColors],
       useMaterial3: true,
       colorScheme: colorScheme,
       textTheme: _textTheme(colorScheme),
