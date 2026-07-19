@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:task_manager/helpers/date_extensions.dart';
 import 'package:task_manager/models/task.dart';
+import 'package:task_manager/services/firestore_service.dart';
 import 'package:task_manager/screen/add_task.dart';
 import 'package:task_manager/screen/task_details.dart';
 
@@ -150,27 +151,51 @@ class TaskCard extends StatelessWidget {
 }
 
 class _HomeState extends State<Home> {
-  List<Task> tasks = [];
+  final _firestore = FirestoreService.instance;
   String selectedStatus = 'All';
+  bool _isSearching = false;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Filter tasks based on selected status
-    List<Task> filteredTasks = tasks.where((task) {
-      if (selectedStatus == 'Pending') {
-        return !task.isCompleted;
-      } else if (selectedStatus == 'Completed') {
-        return task.isCompleted;
-      }
-      return true;
-    }).toList();
-
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(onPressed: () {}, icon: const Icon(Icons.menu)),
-        title: const Text('Home'),
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Search tasks...',
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.toLowerCase();
+                  });
+                },
+              )
+            : const Text('Home'),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.search)),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _isSearching = !_isSearching;
+                if (!_isSearching) {
+                  _searchController.clear();
+                  _searchQuery = '';
+                }
+              });
+            },
+            icon: Icon(_isSearching ? Icons.close : Icons.search),
+          ),
           IconButton(
             onPressed: widget.onToggleTheme,
             icon: Icon(
@@ -186,7 +211,6 @@ class _HomeState extends State<Home> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Filter Row
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -220,69 +244,93 @@ class _HomeState extends State<Home> {
               ],
             ),
             const SizedBox(height: 16.0),
-
-            // Expanded ListView
             Expanded(
-              child: ListView.builder(
-                itemCount: filteredTasks.length,
-                itemBuilder: (context, index) {
-                  final task = filteredTasks[index];
+              child: StreamBuilder<List<Task>>(
+                stream: _firestore.streamTasks(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: TaskCard(
-                      title: task.title,
-                      description: task.description,
-                      dueDate: task.dueDate,
-                      priority: task.priority,
-                      isCompleted: task.isCompleted,
-                      isFavourite: task.isFavourite,
-                      onStatusChanged: (bool? value) {
-                        if (value != null) {
-                          setState(() {
-                            // Find the actual task in the main list
-                            final mainIndex = tasks.indexOf(task);
-                            if (mainIndex != -1) {
-                              tasks[mainIndex].isCompleted = value;
-                            }
-                          });
-                        }
-                      },
-                      onFavouriteToggle: () {
-                        setState(() {
-                          final mainIndex = tasks.indexOf(task);
-                          if (mainIndex != -1) {
-                            tasks[mainIndex].isFavourite =
-                                !tasks[mainIndex].isFavourite;
-                          }
-                        });
-                      },
-                      onTap: () async {
-                        // Navigate to TaskDetails
-                        final updatedTask = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TaskDetails(task: task),
-                          ),
-                        );
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
 
-                        // Update the task in the list
-                        if (updatedTask == "delete") {
-                          setState(() {
-                            tasks.remove(
-                              task,
-                            ); // removes by object reference — always correct
-                          });
-                        } else if (updatedTask != null && updatedTask is Task) {
-                          setState(() {
-                            final index = tasks.indexOf(task);
-                            if (index != -1) {
-                              tasks[index] = updatedTask;
+                  final tasks = snapshot.data ?? [];
+                  final filteredTasks = tasks.where((task) {
+                    if (_searchQuery.isNotEmpty) {
+                      final matchesSearch =
+                          task.title.toLowerCase().contains(_searchQuery);
+                      if (!matchesSearch) return false;
+                    }
+                    if (selectedStatus == 'Pending') {
+                      return !task.isCompleted;
+                    } else if (selectedStatus == 'Completed') {
+                      return task.isCompleted;
+                    }
+                    return true;
+                  }).toList();
+
+                  if (filteredTasks.isEmpty) {
+                    return Center(
+                      child: Text(
+                        _searchQuery.isNotEmpty
+                            ? 'No tasks match your search'
+                            : selectedStatus == 'All'
+                                ? 'No tasks yet. Tap + to add one!'
+                                : 'No ${selectedStatus.toLowerCase()} tasks',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 16,
+                        ),
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    itemCount: filteredTasks.length,
+                    itemBuilder: (context, index) {
+                      final task = filteredTasks[index];
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: TaskCard(
+                          title: task.title,
+                          description: task.description,
+                          dueDate: task.dueDate,
+                          priority: task.priority,
+                          isCompleted: task.isCompleted,
+                          isFavourite: task.isFavourite,
+                          onStatusChanged: (bool? value) {
+                            if (value != null && task.uid != null) {
+                              _firestore.toggleTaskStatus(task.uid!, value);
                             }
-                          });
-                        }
-                      },
-                    ),
+                          },
+                          onFavouriteToggle: () {
+                            if (task.uid != null) {
+                              _firestore.toggleTaskFavourite(
+                                task.uid!,
+                                !task.isFavourite,
+                              );
+                            }
+                          },
+                          onTap: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TaskDetails(task: task),
+                              ),
+                            );
+
+                            if (result == "delete" && task.uid != null) {
+                              _firestore.deleteTask(task.uid!);
+                            } else if (result != null && result is Task) {
+                              _firestore.updateTask(result);
+                            }
+                          },
+                        ),
+                      );
+                    },
                   );
                 },
               ),
@@ -299,9 +347,7 @@ class _HomeState extends State<Home> {
           );
 
           if (newTask != null) {
-            setState(() {
-              tasks.add(newTask);
-            });
+            _firestore.addTask(newTask);
           }
         },
         child: const Icon(Icons.add),

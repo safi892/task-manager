@@ -221,15 +221,14 @@ class _EditTaskScreenState extends State<EditTaskScreen> {
                     return;
                   }
 
-                  // ✅ FIX: Create a new task object with the updated values
                   final updatedTask = Task(
                     title: _titleController.text,
                     description: _descriptionController.text,
                     dueDate: _selectedDate,
                     priority: _selectedPriority,
-                    isCompleted: widget.task.isCompleted, // Preserve status
-                    isFavourite: widget.task.isFavourite, // Preserve favourite
-                  );
+                    isCompleted: widget.task.isCompleted,
+                    isFavourite: widget.task.isFavourite,
+                  )..uid = widget.task.uid;
 
                   // Return the updated task
                   Navigator.pop(context, updatedTask);

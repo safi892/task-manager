@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:task_manager/screen/home.dart';
 import 'package:task_manager/screen/signup.dart';
 
 class Login extends StatefulWidget {
@@ -44,12 +43,6 @@ class _LoginState extends State<Login> {
       );
 
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => Home(onToggleTheme: () {}),
-        ),
-      );
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message ?? 'Login failed')),
